@@ -1,0 +1,24 @@
+{
+  "name": "abc-freight-launchdarkly-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ABC Freight: a LaunchDarkly demo covering release & remediate, targeting, experimentation and AI Configs.",
+  "license": "MIT",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "check": "node scripts/check-env.mjs",
+    "predev": "node scripts/check-env.mjs",
+    "dev": "concurrently --kill-others-on-fail -n server,web -c cyan,yellow \"npm run dev -w server\" \"npm run dev -w web\"",
+    "traffic": "npm run traffic -w server --"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

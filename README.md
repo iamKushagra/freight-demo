@@ -54,25 +54,7 @@ Every requirement in the exercise, where to see it, and the code that does it.
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph Browser["Browser (React, client-side SDK)"]
-    UI["Scenes + presenter console"]
-  end
-  subgraph Server["Node API (server-side SDK + AI SDK)"]
-    API["/api routes"]
-    WD["Incident watchdog"]
-  end
-  LD[("LaunchDarkly")]
-  LLM["Exa answer API<br/>(or local fallback)"]
-
-  LD -- "streaming flag updates" --> UI
-  LD -- "streaming flag updates" --> API
-  UI -- "/api via Vite proxy" --> API
-  UI -- "track(): conversion events" --> LD
-  WD -- "POST flag trigger URL" --> LD
-  API -- "AI Config: model + prompt" --> LLM
-```
+![Architecture: the browser and the Node API each stream flag updates from LaunchDarkly. The browser calls the API through the Vite proxy and sends track() conversion events to LaunchDarkly. The incident watchdog POSTs to the flag trigger URL. The API sends the AI Config’s model and prompt to the Exa answer API, or to a local fallback.](docs/architecture.png)
 
 Two SDKs, on purpose. The browser uses the **client-side ID** and the React SDK, so the UI reacts the instant a flag changes. The server uses the **SDK key** and the Node server SDK, so the API enforces the same flag (a stale tab can’t call a disabled feature) and so the AI Config, experiment traffic and audience table run where secrets live.
 
@@ -347,6 +329,7 @@ Where the values are read in code:
 │       ├── components/     console, landing hero, setup screen
 │       └── lib/            API helper, event log, evaluation reasons
 └── docs/
+    ├── architecture.png    the diagram above
     ├── demo-script.md      live talk track
     └── screenshots/
 ```

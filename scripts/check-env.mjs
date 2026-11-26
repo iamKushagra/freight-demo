@@ -26,8 +26,8 @@ else { fail('VITE_LD_CLIENT_SIDE_ID is missing or is not a 24-character client-s
 if (env.LD_TRIGGER_URL) ok('LD_TRIGGER_URL is set, so the watchdog can remediate automatically');
 else warn('LD_TRIGGER_URL is empty. The incident demo still runs; you will turn the flag off by hand.');
 
-if (env.OPENAI_API_KEY || env.ANTHROPIC_API_KEY) ok('An LLM API key is set; the assistant will call a real model when the AI Config selects it');
-else warn('No LLM API key set. The assistant uses the built-in mock LLM (fine for the demo).');
+if (env.EXA_API_KEY) ok('EXA_API_KEY is set; the assistant answers with Exa and cites sources');
+else warn('EXA_API_KEY is empty. The assistant uses the local fallback (fine for the demo).');
 
 if (blocking) {
   console.log(`\n${blocking} problem(s) need fixing before the app can start. Details: README → Quick start.\n`);

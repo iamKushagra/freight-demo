@@ -36,7 +36,9 @@ export default function AssistantScene({ persona }) {
       });
       setMessages([...history, { role: 'assistant', content: res.reply, meta: res.meta, responseId: res.responseId }]);
       if (res.meta?.enabled) {
-        log(`AI Config served ${res.meta.model}`, 'stream', `${res.meta.latencyMs} ms, ${res.meta.tokens.total} tokens`);
+        const { variation, source, model, latencyMs, costUsd } = res.meta;
+        const cost = costUsd != null ? `, ${usd(costUsd)}` : '';
+        log(variation ? `AI Config variation ${variation}` : source, 'stream', `${model}, ${latencyMs} ms${cost}`);
       }
     } catch (err) {
       setError(err.message);
@@ -57,8 +59,9 @@ export default function AssistantScene({ persona }) {
       <header className="scene-header">
         <h1 id="scene-heading">Change the assistant’s model and prompt without a deploy</h1>
         <p className="lede">
-          The shipping assistant reads its model and system prompt from the AI Config <code>{AI_CONFIG_KEY}</code> on
-          every message. Change the variation in LaunchDarkly, ask again, and the next answer comes from the new setup.
+          Each reply is an Exa answer: Exa searches the web, then writes from those sources. Every customer gets the
+          same Exa model and the same instructions from the AI Config <code>{AI_CONFIG_KEY}</code>. Change that
+          setup in LaunchDarkly and the next message, for anyone, uses it, with no deploy.
         </p>
       </header>
 
@@ -78,6 +81,13 @@ export default function AssistantScene({ persona }) {
             {messages.map((m, i) => (
               <li key={i} className={`bubble bubble-${m.role}`}>
                 <p>{m.content}</p>
+                {m.meta?.citations?.length > 0 && (
+                  <ul className="sources">
+                    {m.meta.citations.map((c) => (
+                      <li key={c.url}><a href={c.url} target="_blank" rel="noreferrer">{c.title}</a></li>
+                    ))}
+                  </ul>
+                )}
                 {m.meta && <ReplyMeta meta={m.meta} />}
                 {m.meta?.enabled && (
                   <div className="feedback">
@@ -101,10 +111,10 @@ export default function AssistantScene({ persona }) {
         <aside className="why">
           <h2 className="panel-title">What to try</h2>
           <ul className="try-list">
-            <li>Change the default rule to a different variation, then ask again. Model, latency and tone change on the next reply.</li>
-            <li>Switch to Aiko, an enterprise customer. A rule on <code>tier</code> can serve her a premium model and prompt.</li>
+            <li>Ask as Sam, then as Aiko. Both get the same model, the same instructions, and sources on the reply.</li>
+            <li>Edit that one variation in LaunchDarkly, then ask again. The next reply, for every persona, uses the new prompt or model.</li>
             <li>Disable the AI Config. The assistant steps aside gracefully instead of failing.</li>
-            <li>Open the AI Config’s Monitoring tab to compare latency, tokens and feedback per variation.</li>
+            <li>Open the AI Config’s Monitoring tab to see latency, success rate and feedback for the variation.</li>
           </ul>
         </aside>
       </div>
@@ -117,10 +127,12 @@ function ReplyMeta({ meta }) {
   return (
     <dl className="reply-meta">
       <div><dt>Variation</dt><dd>{meta.variation ?? meta.source}</dd></div>
-      <div><dt>Model</dt><dd>{meta.model}</dd></div>
+      <div><dt>Model</dt><dd>{meta.model === meta.exaModel ? meta.model : `${meta.model} (sent as ${meta.exaModel})`}</dd></div>
       <div><dt>Ran on</dt><dd>{meta.provider}</dd></div>
       <div><dt>Latency</dt><dd>{meta.latencyMs} ms</dd></div>
-      <div><dt>Tokens</dt><dd>{meta.tokens.total}</dd></div>
+      {meta.costUsd != null && <div><dt>Cost</dt><dd>{usd(meta.costUsd)}</dd></div>}
     </dl>
   );
 }
+
+const usd = (n) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });

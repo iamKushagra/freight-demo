@@ -1,76 +1,65 @@
-export async function complete({ model, provider, messages, context }) {
-  const modelName = model?.name ?? 'fallback-mock';
-  const params = model?.parameters ?? {};
-  const vendor = String(provider?.name ?? inferVendor(modelName)).toLowerCase();
+const EXA_MODELS = new Set(['exa', 'exa-pro', 'exa-research', 'exa-fast']);
 
-  if (vendor.includes('openai')) {
-    if (process.env.OPENAI_API_KEY) return callOpenAI(modelName, params, messages);
-    return mockComplete({ modelName, messages, context, reason: 'no OPENAI_API_KEY' });
+export async function complete({ model, messages, context }) {
+  const modelName = model?.name ?? 'exa';
+  if (!process.env.EXA_API_KEY) {
+    return mockComplete({ modelName, messages, context, reason: 'no EXA_API_KEY' });
   }
-  if (vendor.includes('anthropic')) {
-    if (process.env.ANTHROPIC_API_KEY) return callAnthropic(modelName, params, messages);
-    return mockComplete({ modelName, messages, context, reason: 'no ANTHROPIC_API_KEY' });
-  }
-  return mockComplete({ modelName, messages, context, reason: 'mock model selected' });
+  return callExa({ modelName, messages, context });
 }
 
-function inferVendor(name) {
-  if (/^claude/i.test(name)) return 'anthropic';
-  if (/^(gpt|o\d|chatgpt)/i.test(name)) return 'openai';
-  return 'mock';
+function resolveExaModel(name) {
+  const raw = String(name ?? '').toLowerCase();
+  return EXA_MODELS.has(raw) ? raw : 'exa';
 }
 
-const maxTokensOf = (params) => params.maxTokens ?? params.max_tokens ?? 500;
-
-async function callOpenAI(model, params, messages) {
-  const body = { model, messages, max_completion_tokens: maxTokensOf(params) };
-  if (params.temperature !== undefined) body.temperature = params.temperature;
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`OpenAI: ${data.error?.message ?? res.status}`);
-  const u = data.usage ?? {};
-  return {
-    text: data.choices?.[0]?.message?.content ?? '',
-    usage: { input: u.prompt_tokens ?? 0, output: u.completion_tokens ?? 0, total: u.total_tokens ?? 0 },
-    provider: 'openai',
-    mocked: false,
-  };
-}
-
-async function callAnthropic(model, params, messages) {
+async function callExa({ modelName, messages, context }) {
+  const exaModel = resolveExaModel(modelName);
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
-  const turns = messages.filter((m) => m.role !== 'system');
-  const body = { model, system, messages: turns, max_tokens: maxTokensOf(params) };
-  if (params.temperature !== undefined) body.temperature = params.temperature;
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const query = buildQuery(messages);
+  const body = { query, model: exaModel, stream: false };
+  if (system) body.systemPrompt = system.slice(0, 4000);
+  if (/^[A-Za-z]{2}$/.test(context?.country ?? '')) body.userLocation = context.country;
+
+  const res = await fetch('https://api.exa.ai/answer', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
+      'x-api-key': process.env.EXA_API_KEY,
     },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`Anthropic: ${data.error?.message ?? res.status}`);
-  const u = data.usage ?? {};
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message = data.error?.message || data.message || res.status;
+    throw new Error(`Exa: ${message}`);
+  }
+
+  const text = typeof data.answer === 'string' ? data.answer : JSON.stringify(data.answer ?? '');
+  const citations = (data.citations ?? []).slice(0, 4).map((c) => ({ title: c.title, url: c.url }));
   return {
-    text: (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('\n'),
-    usage: { input: u.input_tokens ?? 0, output: u.output_tokens ?? 0, total: (u.input_tokens ?? 0) + (u.output_tokens ?? 0) },
-    provider: 'anthropic',
-    mocked: false,
+    text,
+    citations,
+    exaModel,
+    costUsd: data.costDollars?.total ?? null,
+    provider: 'Exa',
   };
+}
+
+function buildQuery(messages) {
+  const turns = messages.filter((m) => m.role !== 'system' && typeof m.content === 'string');
+  const latest = [...turns].reverse().find((m) => m.role === 'user')?.content ?? '';
+  const earlier = turns.slice(0, -1).slice(-4);
+  if (!earlier.length) return latest;
+  const prior = earlier.map((m) => `${m.role}: ${m.content}`).join('\n');
+  return `Earlier in this conversation:\n${prior}\n\nAnswer this: ${latest}`;
 }
 
 const TOPICS = [
   {
     match: /quote|price|cost|rate|how much/i,
-    short: 'Use our instant quote for a live price. As a guide, a 40ft container from Chennai to Rotterdam is about USD 4,500 and takes around 18 days.',
-    long: 'For a live price, use the instant quote. It prices the lane, container size and carrier in a few seconds and holds the rate for 48 hours. As a guide, a 40ft container from Chennai to Rotterdam runs about USD 4,500 with roughly 18 days at sea plus port handling. If your cargo is under about 15 cubic metres, a shared (LCL) container is usually cheaper.',
+    short: 'Use our instant quote for a price held for 48 hours. As a guide, a 40 ft container from Chennai to Rotterdam is about USD 2,400 and takes around 24 days with Maersk.',
+    long: 'Use the instant quote: it prices your lane and container size in a few seconds and holds the rate for 48 hours. As a guide, a 40 ft container from Chennai to Rotterdam is about USD 2,400 port to port and takes around 24 days with Maersk, via Suez. For less than a container load (LCL), send a quote request and the sales desk will price it by volume.',
   },
   {
     match: /delay|late|stuck|where|track/i,
@@ -89,7 +78,6 @@ const DEFAULT_TOPIC = {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const estimateTokens = (text) => Math.ceil(text.length / 4);
 
 async function mockComplete({ modelName, messages, context, reason }) {
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n');
@@ -97,20 +85,22 @@ async function mockComplete({ modelName, messages, context, reason }) {
   const topic = TOPICS.find((t) => t.match.test(question)) ?? DEFAULT_TOPIC;
 
   const concise = /concise|brief|short|one or two sentences/i.test(system);
-  const warm = /warm|friendly|white-glove|empath/i.test(system);
+  const warm = /warm|friendly|empath/i.test(system);
   let text = concise ? topic.short : topic.long;
   if (warm) {
     const firstName = context?.name?.split(' ')[0];
     text = `Happy to help${firstName ? `, ${firstName}` : ''}. ${text}`;
   }
-  if (/enterprise/i.test(system) && context?.tier === 'enterprise') {
-    text += ' As an enterprise customer, you can also reach your account manager directly.';
-  }
+  text += ' Add EXA_API_KEY to search the web with Exa and attach sources.';
 
-  const fast = /mini|haiku|flash|small|nano/i.test(modelName);
-  await sleep((fast ? 350 : 1100) + Math.random() * 400);
+  const exaModel = resolveExaModel(modelName);
+  await sleep((exaModel === 'exa-fast' ? 350 : 1100) + Math.random() * 400);
 
-  const input = estimateTokens(messages.map((m) => m.content).join(' '));
-  const output = estimateTokens(text);
-  return { text, usage: { input, output, total: input + output }, provider: `mock (${reason})`, mocked: true };
+  return {
+    text,
+    citations: [],
+    exaModel,
+    costUsd: null,
+    provider: `local fallback (${reason})`,
+  };
 }

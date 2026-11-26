@@ -105,18 +105,19 @@ function InstantQuote({ persona }) {
   return (
     <form className="quote" onSubmit={getQuote}>
       <h2 className="quote-title">Instant quote</h2>
-      <p className="quote-sub">A live price in seconds, held for 48 hours.</p>
+      <p className="quote-sub">A port-to-port price in seconds, held for 48 hours.</p>
       <div className="quote-fields">
         <label>From<select value={form.origin} onChange={update('origin')}>{ORIGINS.map((o) => <option key={o}>{o}</option>)}</select></label>
         <label>To<select value={form.destination} onChange={update('destination')}>{DESTINATIONS.map((d) => <option key={d}>{d}</option>)}</select></label>
-        <label>Cargo<select value={form.container} onChange={update('container')}>{CONTAINERS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
+        <label>Container<select value={form.container} onChange={update('container')}>{CONTAINERS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select></label>
       </div>
       <button className="button-primary" type="submit" disabled={busy}>{busy ? 'Pricing…' : 'Get instant quote'}</button>
       {error && <p className="inline-error" role="alert">{error}</p>}
       {quote && (
         <div className="quote-result">
           <p className="quote-price">USD {quote.price.toLocaleString()}</p>
-          <p>{quote.origin} to {quote.destination}, about {quote.transitDays} days with {quote.carrier}.</p>
+          <p>{quote.origin} to {quote.destination}, about {quote.transitDays} days port to port with {quote.carrier}.</p>
+          <p className="quote-note">Ocean freight only. Port charges, customs and trucking are quoted separately.</p>
         </div>
       )}
     </form>

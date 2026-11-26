@@ -24,7 +24,7 @@ app.get('/api/health', (_req, res) => {
     launchDarkly: ldClient.initialized() ? 'connected' : 'not connected',
     triggerConfigured: Boolean(process.env.LD_TRIGGER_URL),
     aiSdk: assistantStatus(),
-    llm: process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY ? 'real model available' : 'mock LLM',
+    llm: process.env.EXA_API_KEY ? 'exa' : 'local fallback',
   });
 });
 

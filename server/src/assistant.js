@@ -4,7 +4,7 @@ import { complete } from './llm.js';
 
 const FALLBACK_CONFIG = {
   enabled: true,
-  model: { name: 'fallback-mock' },
+  model: { name: 'exa' },
   messages: [{
     role: 'system',
     content: 'You are the ABC Freight shipping assistant. Answer briefly and factually.',
@@ -40,12 +40,16 @@ async function resolveConfig(context) {
   const method = typeof aiClient.completionConfig === 'function' ? 'completionConfig' : 'config';
   const result = await aiClient[method](AI_CONFIG_KEY, context, FALLBACK_CONFIG, variables);
   const config = result?.config && !result.messages ? result.config : result;
-  return { config, tracker: result?.tracker ?? null };
+  const tracker = result?.createTracker?.() ?? result?.tracker ?? null;
+  return { config, tracker };
 }
 
 export async function chat(context, history) {
   const { config, tracker } = await resolveConfig(context);
-  const usingFallback = config?.model?.name === FALLBACK_CONFIG.model.name;
+  const variation = tracker?.getTrackData?.()?.variationKey || null;
+  const source = variation
+    ? 'LaunchDarkly AI Config'
+    : `in-code fallback (${aiClient ? 'AI Config not found' : 'AI SDK unavailable'})`;
 
   if (config?.enabled === false) {
     return {
@@ -57,11 +61,10 @@ export async function chat(context, history) {
   const messages = [...(config.messages ?? []), ...history];
   const started = performance.now();
   try {
-    const out = await complete({ model: config.model, provider: config.provider, messages, context });
+    const out = await complete({ model: config.model, messages, context });
     const latencyMs = Math.round(performance.now() - started);
 
     tracker?.trackDuration?.(latencyMs);
-    tracker?.trackTokens?.({ total: out.usage.total, input: out.usage.input, output: out.usage.output });
     tracker?.trackSuccess?.();
 
     const responseId = rememberTracker(tracker);
@@ -72,11 +75,12 @@ export async function chat(context, history) {
         enabled: true,
         model: config.model?.name ?? 'unknown',
         provider: out.provider,
-        mocked: out.mocked,
+        exaModel: out.exaModel ?? null,
+        citations: out.citations ?? [],
         latencyMs,
-        tokens: out.usage,
-        variation: tracker?.getTrackData?.()?.variationKey ?? null,
-        source: usingFallback ? 'in-code fallback (AI Config not found)' : 'LaunchDarkly AI Config',
+        costUsd: out.costUsd ?? null,
+        variation,
+        source,
         systemPrompt: messages.find((m) => m.role === 'system')?.content ?? '',
       },
     };

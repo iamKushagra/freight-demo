@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useFlags, useLDClient } from 'launchdarkly-react-client-sdk';
+import { useLDClient } from 'launchdarkly-react-client-sdk';
 import { LogProvider, useLog } from './lib/log.jsx';
 import { DEFAULT_PERSONA, PERSONAS } from './personas.js';
 import Console from './components/Console.jsx';
@@ -17,8 +17,6 @@ const SCENES = [
 
 const sceneFromHash = () => SCENES.find((s) => `#${s.id}` === window.location.hash)?.id ?? 'release';
 const show = (value) => (value === undefined ? 'unset' : value ? 'ON' : 'OFF');
-const TEST_FLAG_KEY = 'onboarding-test-banner';
-const TEST_FLAG_URL = 'https://app.launchdarkly.com/projects/default/flags/onboarding-test-banner/targeting?env=production';
 
 export default function App() {
   return (
@@ -60,9 +58,9 @@ function Shell() {
     const next = PERSONAS.find((p) => p.id === id);
     if (!next || !ldClient || next.id === persona.id) return;
     switchingContext.current = true;
-    setPersona(next);
     try {
       await ldClient.identify(next.context);
+      setPersona(next);
       log(`Viewing as ${next.context.name}`, 'context', `context key ${next.context.key}`);
     } finally {
       setTimeout(() => { switchingContext.current = false; }, 250);
@@ -74,7 +72,6 @@ function Shell() {
 
   return (
     <div className="shell">
-      <TestBanner />
       <header className="masthead">
         <a className="brand" href="#release" aria-label="ABC Freight home">
           <ContainerMark />
@@ -104,17 +101,6 @@ function Shell() {
 
       <Console persona={persona} onSwitchPersona={switchPersona} />
     </div>
-  );
-}
-
-function TestBanner() {
-  const flags = useFlags();
-  const on = flags[TEST_FLAG_KEY] === true;
-  return (
-    <aside className={on ? 'ld-test-banner is-on' : 'ld-test-banner'} role="status">
-      <p>{on ? 'LaunchDarkly test banner (flag is on)' : 'LaunchDarkly test banner (flag is off)'}</p>
-      <a href={TEST_FLAG_URL} target="_blank" rel="noreferrer">View flag</a>
-    </aside>
   );
 }
 

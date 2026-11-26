@@ -1,18 +1,32 @@
+import { useEffect, useState } from 'react';
 import { useLDClient } from 'launchdarkly-react-client-sdk';
 import { METRIC_KEY } from '../flags.js';
 import { useLog } from '../lib/log.jsx';
 
-export default function LandingHero({ isNew, onConvert }) {
+export default function LandingHero({ isNew }) {
   const ldClient = useLDClient();
   const { log } = useLog();
+  const [clicks, setClicks] = useState(0);
+  const which = isNew ? 'new' : 'current';
+
+  useEffect(() => { setClicks(0); }, [isNew]);
 
   function handleCta() {
     ldClient?.track(METRIC_KEY, { hero: isNew ? 'v2' : 'current' });
-    log(`track("${METRIC_KEY}")`, 'track', `from the ${isNew ? 'new' : 'current'} hero`);
-    onConvert?.();
+    log(`track("${METRIC_KEY}")`, 'track', `from the ${which} hero`);
+    setClicks((n) => n + 1);
   }
 
-  return isNew ? <NewHero onCta={handleCta} /> : <CurrentHero onCta={handleCta} />;
+  return (
+    <>
+      {isNew ? <NewHero onCta={handleCta} /> : <CurrentHero onCta={handleCta} />}
+      <p className={`hero-ack${clicks ? ' is-sent' : ''}`} role="status" aria-live="polite">
+        {clicks === 0
+          ? 'Click the button to send a quote-click event to LaunchDarkly.'
+          : `Sent ${clicks} ${clicks === 1 ? 'click' : 'clicks'} from the ${which} hero. The event is ${METRIC_KEY}.`}
+      </p>
+    </>
+  );
 }
 
 function CurrentHero({ onCta }) {
@@ -32,7 +46,7 @@ function NewHero({ onCta }) {
     <div className="hero hero-new">
       <div className="hero-copy">
         <h2 className="hero-title">Book a container in minutes, not days.</h2>
-        <p className="hero-text">Live prices on 16 lanes out of Asia, held for 48 hours. No sales call needed.</p>
+        <p className="hero-text">Instant prices on 16 lanes out of Asia, held for 48 hours. No sales call needed.</p>
         <button className="button-primary" type="button" onClick={onCta}>Get an instant quote</button>
       </div>
       <figure className="lane">
@@ -44,7 +58,7 @@ function NewHero({ onCta }) {
           <text x="40" y="58" className="lane-label">Singapore</text>
           <text x="280" y="134" className="lane-label" textAnchor="end">Sydney</text>
         </svg>
-        <figcaption>Singapore to Sydney, 13 days door to door, from USD 1,980</figcaption>
+        <figcaption>Singapore to Sydney, 13 days port to port, 40 ft from USD 3,970</figcaption>
       </figure>
     </div>
   );

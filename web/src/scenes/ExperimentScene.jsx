@@ -10,7 +10,6 @@ export default function ExperimentScene({ persona }) {
   const flags = useFlags();
   const { log } = useLog();
   const isNew = flags[FLAGS.landingHero] ?? false;
-  const [clicks, setClicks] = useState(0);
   const [run, setRun] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -43,12 +42,7 @@ export default function ExperimentScene({ persona }) {
       <div className="targeting-grid">
         <div className="product-frame">
           <p className="frame-caption">The hero {firstName(persona)} is assigned</p>
-          <LandingHero isNew={isNew} onConvert={() => setClicks((n) => n + 1)} />
-          <p className="frame-foot">
-            {clicks === 0
-              ? 'Click the button to send a conversion event. It appears in the console.'
-              : `${clicks} conversion ${clicks === 1 ? 'event' : 'events'} sent from this browser.`}
-          </p>
+          <LandingHero isNew={isNew} />
         </div>
 
         <aside className="why">
@@ -74,9 +68,9 @@ export default function ExperimentScene({ persona }) {
       <section className="steps" aria-labelledby="steps-heading">
         <h2 id="steps-heading" className="panel-title">Set up the experiment in LaunchDarkly</h2>
         <ol>
-          <li>Metrics → Create metric: custom conversion, event key <code>{METRIC_KEY}</code>, higher is better. (The bootstrap script does this.)</li>
+          <li>Metrics → Create metric: custom conversion, event key <code>{METRIC_KEY}</code>, higher is better. <code>npm run bootstrap</code> creates it for you.</li>
           <li>Experiments → Create experiment: flag <code>{FLAGS.landingHero}</code>, metric <code>{METRIC_KEY}</code>, randomise by user.</li>
-          <li>Audience: the default rule, split 50/50. Control is “Current hero”, treatment is “New hero (v2)”.</li>
+          <li>Audience: the default rule, split 50/50. Control is the <code>false</code> variation (current hero), treatment is <code>true</code> (new hero).</li>
           <li>Start the iteration, then send traffic here or with <code>npm run traffic -- 1000</code>.</li>
           <li>Open the experiment’s Results tab. Data appears within a few minutes.</li>
         </ol>
